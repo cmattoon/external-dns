@@ -197,6 +197,8 @@ func main() {
 		}
 	case "rfc2136":
 		p, err = provider.NewRfc2136Provider(cfg.RFC2136Host, cfg.RFC2136Port, cfg.RFC2136Zone, cfg.RFC2136Insecure, cfg.RFC2136TSIGKeyName, cfg.RFC2136TSIGSecret, cfg.RFC2136TSIGSecretAlg, cfg.RFC2136TAXFR, domainFilter, cfg.DryRun, nil)
+	case "godaddy":
+		p, err = provider.NewGoDaddyProvider(domainFilter, cfg.GoDaddyAPIEnv, cfg.GoDaddyAPIKey, cfg.GoDaddyAPISecret, nil)
 	default:
 		log.Fatalf("unknown dns provider: %s", cfg.Provider)
 	}

@@ -138,6 +138,9 @@ var (
 		ExoscaleAPISecret:       "2",
 		CRDSourceAPIVersion:     "test.k8s.io/v1alpha1",
 		CRDSourceKind:           "Endpoint",
+		GoDaddyApiEnv:           "ote",
+		GoDaddyApiKey:           "apikey",
+		GoDaddyApiSecret:        "apisecret",
 	}
 )
 
@@ -219,6 +222,9 @@ func TestParseFlags(t *testing.T) {
 				"--exoscale-apisecret=2",
 				"--crd-source-apiversion=test.k8s.io/v1alpha1",
 				"--crd-source-kind=Endpoint",
+				"--godaddy-api-env=ote",
+				"--godaddy-api-key=apikey",
+				"--godaddy-api-secret=apisecret",
 			},
 			envVars:  map[string]string{},
 			expected: overriddenConfig,
@@ -281,6 +287,9 @@ func TestParseFlags(t *testing.T) {
 				"EXTERNAL_DNS_EXOSCALE_APISECRET":         "2",
 				"EXTERNAL_DNS_CRD_SOURCE_APIVERSION":      "test.k8s.io/v1alpha1",
 				"EXTERNAL_DNS_CRD_SOURCE_KIND":            "Endpoint",
+				"EXTERNAL_DNS_GODADDY_API_ENV":            "ote",
+				"EXTERNAL_DNS_GODADDY_API_KEY":            "apikey",
+				"EXTERNAL_DNS_GODADDY_API_SECRET":         "apisecret",
 			},
 			expected: overriddenConfig,
 		},
