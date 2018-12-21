@@ -81,6 +81,7 @@ func NewGoDaddyProvider(domainFilter DomainFilter, api_env string, api_key strin
 		ApiSecret: api_secret,
 		BaseUrl:   base_url,
 		Client:    client,
+		Filter:    domainFilter, // Filter.filters []string
 	}, nil
 }
 
@@ -105,12 +106,40 @@ func (p *GoDaddyProvider) makeRequest(r *http.Request) (*http.Response, error) {
 	return p.Client.Do(r)
 }
 
-func (p *GoDaddyProvider) Records() ([]*endpoint.Endpoint, error) {
-	log.Info("Fetching DNS Records from GoDaddy (%s)", p.ApiEnv)
-	return nil, nil
+func (p *GoDaddyProvider) Records() (endpoints []*endpoint.Endpoint, _ error) {
+	log.Infof("Fetching DNS Records from GoDaddy (%s)", p.ApiEnv)
+	for _, domain := range p.Filter.filters {
+		for _, ep := range p.RecordsForDomain(domain) {
+			endpoints = append(endpoints, ep)
+		}
+	}
+	return endpoints, nil
+}
+
+func (p *GoDaddyProvider) RecordsForDomain(domain string) (eps []*endpoint.Endpoint) {
+	log.Infof("  >> DNS records for domain '%s'", domain)
+	full_path := p.url(domain, "records")
+	log.Infof("     %s", full_path)
+	// req, err := http.NewRequest(http.MethodGet, full_path, nil)
+	// if err != nil {
+	// 	return nil, err
+	// }
+
+	// resp, err := p.makeRequest(req)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// // for i, obj := range resp.Body.whatever {
+	// //     endpoints = append(endpoints, obj)
+	// // }
+	return nil
 }
 
 func (p *GoDaddyProvider) ApplyChanges(changes *plan.Changes) error {
 	log.Infof("Applying DNS Changes to GoDaddy (%s)", p.ApiEnv)
 	return nil
+}
+
+func (p *GoDaddyProvider) url(domain string, path string) string {
+	return fmt.Sprintf("%s/v1/domains/%s/%s", p.BaseUrl, domain, path)
 }
