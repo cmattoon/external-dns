@@ -1,8 +1,11 @@
 package provider
 
 import (
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/http"
+	"strings"
 
 	"github.com/kubernetes-incubator/external-dns/endpoint"
 	"github.com/kubernetes-incubator/external-dns/plan"
@@ -77,8 +80,8 @@ func NewGoDaddyProvider(domainFilter DomainFilter, api_env string, api_key strin
 
 	return &GoDaddyProvider{
 		ApiEnv:    api_env,
-		ApiKey:    api_key,
-		ApiSecret: api_secret,
+		ApiKey:    strings.TrimSpace(api_key),
+		ApiSecret: strings.TrimSpace(api_secret),
 		BaseUrl:   base_url,
 		Client:    client,
 		Filter:    domainFilter, // Filter.filters []string
@@ -109,9 +112,7 @@ func (p *GoDaddyProvider) makeRequest(r *http.Request) (*http.Response, error) {
 func (p *GoDaddyProvider) Records() (endpoints []*endpoint.Endpoint, _ error) {
 	log.Infof("Fetching DNS Records from GoDaddy (%s)", p.ApiEnv)
 	for _, domain := range p.Filter.filters {
-		for _, ep := range p.RecordsForDomain(domain) {
-			endpoints = append(endpoints, ep)
-		}
+		endpoints = append(endpoints, p.RecordsForDomain(domain)...)
 	}
 	return endpoints, nil
 }
@@ -119,27 +120,99 @@ func (p *GoDaddyProvider) Records() (endpoints []*endpoint.Endpoint, _ error) {
 func (p *GoDaddyProvider) RecordsForDomain(domain string) (eps []*endpoint.Endpoint) {
 	log.Infof("  >> DNS records for domain '%s'", domain)
 	full_path := p.url(domain, "records")
-	log.Infof("     %s", full_path)
-	// req, err := http.NewRequest(http.MethodGet, full_path, nil)
-	// if err != nil {
-	// 	return nil, err
-	// }
+	log.Debugf("     %s", full_path)
 
-	// resp, err := p.makeRequest(req)
-	// if err != nil {
-	// 	return nil, err
-	// }
-	// // for i, obj := range resp.Body.whatever {
-	// //     endpoints = append(endpoints, obj)
-	// // }
-	return nil
+	req, err := http.NewRequest(http.MethodGet, full_path, nil)
+	if err != nil {
+		log.Fatalf("Error creating request: %s", err.Error())
+	}
+
+	resp, err := p.makeRequest(req)
+	if err != nil {
+		log.Fatalf("Error making request: %s", err.Error())
+	}
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		log.Fatalf("Error with response body: %s", err.Error())
+	}
+
+	records := []GoDaddyRecord{}
+	err = json.Unmarshal(body, &records)
+	if err != nil {
+		log.Warn(resp.Body)
+		log.Fatalf("Error with response: %s", err.Error())
+	}
+
+	// This should always return ALL records, not just those
+	// managed by external-dns
+	for _, rec := range records {
+		ep := rec.ToEndpoint()
+		log.Debugf("Got record: %s", ep.String())
+		eps = append(eps, ep)
+	}
+	return eps
 }
 
 func (p *GoDaddyProvider) ApplyChanges(changes *plan.Changes) error {
-	log.Infof("Applying DNS Changes to GoDaddy (%s)", p.ApiEnv)
+	log.Infof("Applying Changes...    [Create (%d), Update (%d), Delete (%d)]", len(changes.Create), len(changes.UpdateNew), len(changes.Delete))
+
+	p.prepareChanges(changes.Create, changes.UpdateNew, changes.Delete)
+
+	log.Infof("Done Applying Changes")
 	return nil
+}
+
+// GoDaddy somehow doesn't have a DELETE endpoint; rather, one PUTs all records
+// for a given domain to replace them all.
+// While it's possible to PATCH (add) an additional record, or PUT updated details
+// for an existing record, it seems just as easy to always
+//
+func (p *GoDaddyProvider) prepareChanges(create []*endpoint.Endpoint, update []*endpoint.Endpoint, delete []*endpoint.Endpoint) {
+	current_records, err := p.Records()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	create = p.filterChanges(create)
+	update = p.filterChanges(update)
+	delete = p.filterChanges(delete)
+	for _, rr := range current_records {
+		for _, r := range ToGoDaddyRecord(rr) {
+			log.Infof("DNS    %+v", *r)
+		}
+	}
+	for _, rr := range create {
+		for _, r := range ToGoDaddyRecord(rr) {
+			log.Infof("CREATE %+v", *r)
+		}
+	}
+
+	for _, rr := range update {
+		for _, r := range ToGoDaddyRecord(rr) {
+			log.Infof("UPDATE %+v", *r)
+		}
+	}
+
+	for _, rr := range delete {
+		for _, r := range ToGoDaddyRecord(rr) {
+			log.Infof("DELETE %+v", *r)
+		}
+	}
 }
 
 func (p *GoDaddyProvider) url(domain string, path string) string {
 	return fmt.Sprintf("%s/v1/domains/%s/%s", p.BaseUrl, domain, path)
+}
+
+func (p *GoDaddyProvider) filterChanges(changes []*endpoint.Endpoint) []*endpoint.Endpoint {
+	ret := make([]*endpoint.Endpoint, 0)
+	for _, ch := range changes {
+		if !p.Filter.Match(ch.DNSName) {
+			log.Debugf("omitting change %s", ch.String())
+			continue
+		}
+		ret = append(ret, ch)
+	}
+	return ret
 }
