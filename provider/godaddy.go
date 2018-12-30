@@ -44,6 +44,10 @@ func (g *GoDaddyRecord) ToEndpoint() *endpoint.Endpoint {
 	}
 }
 
+func (g *GoDaddyRecord) Pretty() string {
+	return fmt.Sprintf("%s %s %s", g.Type, g.Name, g.Data)
+}
+
 func ToGoDaddyRecord(e *endpoint.Endpoint) (records []*GoDaddyRecord) {
 	for _, target := range e.Targets {
 		records = append(records, &GoDaddyRecord{
@@ -179,24 +183,24 @@ func (p *GoDaddyProvider) prepareChanges(create []*endpoint.Endpoint, update []*
 	delete = p.filterChanges(delete)
 	for _, rr := range current_records {
 		for _, r := range ToGoDaddyRecord(rr) {
-			log.Infof("DNS    %+v", *r)
+			log.Infof("DNS    %+v", r.Pretty())
 		}
 	}
 	for _, rr := range create {
 		for _, r := range ToGoDaddyRecord(rr) {
-			log.Infof("CREATE %+v", *r)
+			log.Infof("CREATE %+v", r.Pretty())
 		}
 	}
 
 	for _, rr := range update {
 		for _, r := range ToGoDaddyRecord(rr) {
-			log.Infof("UPDATE %+v", *r)
+			log.Infof("UPDATE %+v", r.Pretty())
 		}
 	}
 
 	for _, rr := range delete {
 		for _, r := range ToGoDaddyRecord(rr) {
-			log.Infof("DELETE %+v", *r)
+			log.Infof("DELETE %+v", r.Pretty())
 		}
 	}
 }
