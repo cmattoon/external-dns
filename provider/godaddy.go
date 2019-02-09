@@ -80,6 +80,7 @@ func NewGoDaddyProvider(domainFilter DomainFilter, api_env string, api_key strin
 			PathProcessor:  ihttp.IdentityProcessor,
 			QueryProcessor: ihttp.IdentityProcessor,
 		})
+
 	}
 
 	return &GoDaddyProvider{
@@ -102,7 +103,6 @@ func (p *GoDaddyProvider) Headers() map[string]string {
 
 func (p *GoDaddyProvider) addHeaders(r *http.Request) {
 	for k, v := range p.Headers() {
-		log.Debugf("  Adding Request Headers[%s] = '%s'", k, v)
 		r.Header.Set(k, v)
 	}
 }
@@ -122,7 +122,7 @@ func (p *GoDaddyProvider) Records() (endpoints []*endpoint.Endpoint, _ error) {
 }
 
 func (p *GoDaddyProvider) RecordsForDomain(domain string) (eps []*endpoint.Endpoint) {
-	log.Infof("  >> DNS records for domain '%s'", domain)
+	log.Debugf("  >> DNS records for domain '%s'", domain)
 	full_path := p.url(domain, "records")
 	log.Debugf("     %s", full_path)
 
@@ -173,7 +173,7 @@ func (p *GoDaddyProvider) ApplyChanges(changes *plan.Changes) error {
 // for an existing record, it seems just as easy to always
 //
 func (p *GoDaddyProvider) prepareChanges(create []*endpoint.Endpoint, update []*endpoint.Endpoint, delete []*endpoint.Endpoint) {
-	current_records, err := p.Records()
+	current, err := p.Records()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -181,28 +181,45 @@ func (p *GoDaddyProvider) prepareChanges(create []*endpoint.Endpoint, update []*
 	create = p.filterChanges(create)
 	update = p.filterChanges(update)
 	delete = p.filterChanges(delete)
-	for _, rr := range current_records {
-		for _, r := range ToGoDaddyRecord(rr) {
-			log.Infof("DNS    %+v", r.Pretty())
-		}
-	}
-	for _, rr := range create {
-		for _, r := range ToGoDaddyRecord(rr) {
-			log.Infof("CREATE %+v", r.Pretty())
-		}
+
+	for _, ep := range current {
+		log.Debugf("CURRENT: %+v", ep)
 	}
 
-	for _, rr := range update {
-		for _, r := range ToGoDaddyRecord(rr) {
-			log.Infof("UPDATE %+v", r.Pretty())
-		}
+	for _, ep := range create {
+		log.Debugf("CREATE: %+v", ep)
 	}
 
-	for _, rr := range delete {
-		for _, r := range ToGoDaddyRecord(rr) {
-			log.Infof("DELETE %+v", r.Pretty())
-		}
+	for _, ep := range update {
+		log.Debugf("UPDATE: %+v", ep)
 	}
+
+	for _, ep := range delete {
+		log.Debugf("DELETE: %+v", ep)
+	}
+	// for _, rr := range current_records {
+	// 	for _, r := range ToGoDaddyRecord(rr) {
+	// 		log.Debugf("Exists:    %+v", r.Pretty())
+	// 	}
+	// }
+
+	// for _, rr := range create {
+	// 	for _, r := range ToGoDaddyRecord(rr) {
+	// 		log.Infof("CREATE %+v", r.Pretty())
+	// 	}
+	// }
+
+	// for _, rr := range update {
+	// 	for _, r := range ToGoDaddyRecord(rr) {
+	// 		log.Infof("UPDATE %+v", r.Pretty())
+	// 	}
+	// }
+
+	// for _, rr := range delete {
+	// 	for _, r := range ToGoDaddyRecord(rr) {
+	// 		log.Infof("DELETE %+v", r.Pretty())
+	// 	}
+	// }
 }
 
 func (p *GoDaddyProvider) url(domain string, path string) string {
