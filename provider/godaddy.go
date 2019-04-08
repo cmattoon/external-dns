@@ -93,6 +93,16 @@ func NewGoDaddyProvider(domainFilter DomainFilter, api_env string, api_key strin
 	}, nil
 }
 
+// Records returns a list of endpoints in GoDaddy matching the DomainFilter
+func (p *GoDaddyProvider) Records() (endpoints []*endpoint.Endpoint, _ error) {
+	log.Infof("Fetching DNS Records from GoDaddy (%s)", p.ApiEnv)
+	for _, domain := range p.Filter.filters {
+		endpoints = append(endpoints, p.RecordsForDomain(domain)...)
+	}
+	return endpoints, nil
+}
+
+// Headers returns a map of HTTP headers to use for the GoDaddy API Request
 func (p *GoDaddyProvider) Headers() map[string]string {
 	return map[string]string{
 		"Accept":        "application/json",
@@ -101,24 +111,19 @@ func (p *GoDaddyProvider) Headers() map[string]string {
 	}
 }
 
+// addHeaders adds headers to the *http.Request.
 func (p *GoDaddyProvider) addHeaders(r *http.Request) {
 	for k, v := range p.Headers() {
 		r.Header.Set(k, v)
 	}
 }
 
+// makeRequest prepares headers and makes the HTTP request to GoDaddy
+// (in lieu of an actual API client)
 func (p *GoDaddyProvider) makeRequest(r *http.Request) (*http.Response, error) {
 	log.Debug("Making request...")
 	p.addHeaders(r)
 	return p.Client.Do(r)
-}
-
-func (p *GoDaddyProvider) Records() (endpoints []*endpoint.Endpoint, _ error) {
-	log.Infof("Fetching DNS Records from GoDaddy (%s)", p.ApiEnv)
-	for _, domain := range p.Filter.filters {
-		endpoints = append(endpoints, p.RecordsForDomain(domain)...)
-	}
-	return endpoints, nil
 }
 
 func (p *GoDaddyProvider) RecordsForDomain(domain string) (eps []*endpoint.Endpoint) {
@@ -144,7 +149,6 @@ func (p *GoDaddyProvider) RecordsForDomain(domain string) (eps []*endpoint.Endpo
 	records := []GoDaddyRecord{}
 	err = json.Unmarshal(body, &records)
 	if err != nil {
-		log.Warn(resp.Body)
 		log.Fatalf("Error with response: %s", err.Error())
 	}
 
@@ -167,11 +171,6 @@ func (p *GoDaddyProvider) ApplyChanges(changes *plan.Changes) error {
 	return nil
 }
 
-// GoDaddy somehow doesn't have a DELETE endpoint; rather, one PUTs all records
-// for a given domain to replace them all.
-// While it's possible to PATCH (add) an additional record, or PUT updated details
-// for an existing record, it seems just as easy to always
-//
 func (p *GoDaddyProvider) prepareChanges(create []*endpoint.Endpoint, update []*endpoint.Endpoint, delete []*endpoint.Endpoint) {
 	current, err := p.Records()
 	if err != nil {
@@ -197,29 +196,6 @@ func (p *GoDaddyProvider) prepareChanges(create []*endpoint.Endpoint, update []*
 	for _, ep := range delete {
 		log.Debugf("DELETE: %+v", ep)
 	}
-	// for _, rr := range current_records {
-	// 	for _, r := range ToGoDaddyRecord(rr) {
-	// 		log.Debugf("Exists:    %+v", r.Pretty())
-	// 	}
-	// }
-
-	// for _, rr := range create {
-	// 	for _, r := range ToGoDaddyRecord(rr) {
-	// 		log.Infof("CREATE %+v", r.Pretty())
-	// 	}
-	// }
-
-	// for _, rr := range update {
-	// 	for _, r := range ToGoDaddyRecord(rr) {
-	// 		log.Infof("UPDATE %+v", r.Pretty())
-	// 	}
-	// }
-
-	// for _, rr := range delete {
-	// 	for _, r := range ToGoDaddyRecord(rr) {
-	// 		log.Infof("DELETE %+v", r.Pretty())
-	// 	}
-	// }
 }
 
 func (p *GoDaddyProvider) url(domain string, path string) string {
